@@ -113,9 +113,12 @@ def detect_timestamp_column(df):
 
     timestamp_candidates = [
         "created_at",
+        "created_on"
         "updated_at",
         "last_updated",
         "modified_date",
+        "modified_on",
+        "created",
         "created_date",
         "last_updated_date"
     ]
