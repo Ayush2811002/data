@@ -3,7 +3,8 @@ const router = express.Router();
 const { createConnection } = require("../db/connection");
 // ⚠ IMPORTANT FIX → "../db/connection" (not "./db/connection")
 const axios = require("axios");
-
+const PYTHON_SERVICE_URL =
+  process.env.PYTHON_SERVICE_URL || "http://127.0.0.1:8000";
 router.post("/extract", async (req, res) => {
   const config = req.body;
 
@@ -107,8 +108,15 @@ router.post("/extract", async (req, res) => {
       }));
 
       // ✅ CALL PYTHON AI SERVICE 🔥
+      // const aiResponse = await axios.post(
+      //   "http://127.0.0.1:8000/generate-summary",
+      //   {
+      //     tableName: tableName,
+      //     columns: enrichedColumns,
+      //   },
+      // );
       const aiResponse = await axios.post(
-        "http://127.0.0.1:8000/generate-summary",
+        `${PYTHON_SERVICE_URL}/generate-summary`,
         {
           tableName: tableName,
           columns: enrichedColumns,
@@ -126,7 +134,7 @@ router.post("/extract", async (req, res) => {
     // res.json(metadata);
     // ✅ CALL PYTHON DATA QUALITY ENGINE
     const qualityResponse = await axios.post(
-      "http://localhost:8000/analyze-data",
+      `${PYTHON_SERVICE_URL}/analyze-data`,
       {
         host: config.host,
         user: config.user,

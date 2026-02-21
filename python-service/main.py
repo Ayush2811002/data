@@ -1,100 +1,9 @@
-# from fastapi import FastAPI
-# from pydantic import BaseModel
-# from typing import List
-
-# app = FastAPI()
-
-# class Column(BaseModel):
-#     name: str
-#     type: str
-#     isPrimaryKey: bool
-#     isForeignKey: bool
-
-# class Table(BaseModel):
-#     tableName: str
-#     columns: List[Column]
-
-# @app.post("/generate-summary")
-# def generate_summary(table: Table):
-
-#     # TEMPORARY MOCK AI (for now)
-#     summary = f"This table '{table.tableName}' stores business data with {len(table.columns)} attributes."
-
-#     return {
-#         "tableName": table.tableName,
-#         "businessSummary": summary
-#     }
-
-
-
-# from fastapi import FastAPI
-# import pandas as pd
-# import mysql.connector
-
-# app = FastAPI()
-
-# # ✅ AI BUSINESS SUMMARY
-# @app.post("/generate-summary")
-# def generate_summary(table: dict):
-
-#     summary = f"This table '{table['tableName']}' stores business data with {len(table['columns'])} attributes."
-
-#     return {
-#         "tableName": table["tableName"],
-#         "businessSummary": summary
-#     }
-
-# # ✅ DATA QUALITY ENGINE
-# @app.post("/analyze-data")
-# def analyze_data(config: dict):
-
-#     conn = mysql.connector.connect(
-#         host=config["host"],
-#         user=config["user"],
-#         password=config["password"],
-#         database=config["database"]
-#     )
-
-#     results = []
-
-#     for table in config["tables"]:
-
-#         table_name = table["tableName"]
-
-#         # ✅ PERFORMANCE FIX 🔥🔥🔥
-#         df = pd.read_sql(f"SELECT * FROM {table_name} LIMIT 200", conn)
-
-#         column_metrics = []
-
-#         for col in df.columns:
-
-#             completeness = df[col].notnull().mean() * 100 if len(df) > 0 else 0
-#             uniqueness = df[col].nunique() / len(df) * 100 if len(df) > 0 else 0
-
-#             completeness = 0 if pd.isna(completeness) else completeness
-#             uniqueness = 0 if pd.isna(uniqueness) else uniqueness
-
-#             column_metrics.append({
-#                 "column": col,
-#                 "completeness": round(completeness, 2),
-#                 "uniqueness": round(uniqueness, 2)
-#             })
-
-
-#         results.append({
-#             "tableName": table_name,
-#             "metrics": column_metrics
-#         })
-
-#     conn.close()
-
-#     return results
-
 
 from fastapi import FastAPI
 import pandas as pd
 import mysql.connector
-
+import os
+import uvicorn
 app = FastAPI()
 
 # ✅ AI BUSINESS SUMMARY
@@ -113,7 +22,7 @@ def detect_timestamp_column(df):
 
     timestamp_candidates = [
         "created_at",
-        "created_on"
+        "created_on",
         "updated_at",
         "last_updated",
         "modified_date",
@@ -236,3 +145,6 @@ def analyze_data(config: dict):
     conn.close()
 
     return results
+if __name__ == "__main__":
+    port = int(os.environ.get("PYTHON_PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
