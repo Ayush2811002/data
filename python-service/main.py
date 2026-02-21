@@ -1,25 +1,43 @@
-
 from fastapi import FastAPI
 import pandas as pd
-import mysql.connector
 import os
 import uvicorn
+
 app = FastAPI()
 
-# ✅ AI BUSINESS SUMMARY
+# ==============================
+# 🤖 AI BUSINESS SUMMARY
+# ==============================
 @app.post("/generate-summary")
-def generate_summary(table: dict):
+def generate_summary(payload: dict):
+    """
+    Expected payload:
+    {
+      "tableName": "users",
+      "columns": [
+        { "name": "id", "type": "int" }
+      ]
+    }
+    """
 
-    summary = f"This table '{table['tableName']}' stores business data with {len(table['columns'])} attributes."
+    table_name = payload.get("tableName")
+    columns = payload.get("columns", [])
+
+    summary = (
+        f"This table '{table_name}' stores business data "
+        f"with {len(columns)} attributes."
+    )
 
     return {
-        "tableName": table["tableName"],
+        "tableName": table_name,
         "businessSummary": summary
     }
 
-# ✅ TIMESTAMP DETECTION ENGINE 🔥
-def detect_timestamp_column(df):
 
+# ==============================
+# 🔥 TIMESTAMP DETECTOR
+# ==============================
+def detect_timestamp_column(df: pd.DataFrame):
     timestamp_candidates = [
         "created_at",
         "created_on",
@@ -38,36 +56,38 @@ def detect_timestamp_column(df):
 
     return None
 
-# ✅ DATA QUALITY + FRESHNESS + RISK ENGINE 😈🔥
+
+# ==============================
+# 😈 DATA QUALITY + FRESHNESS + RISK
+# ==============================
 @app.post("/analyze-data")
-def analyze_data(config: dict):
+def analyze_data(payload: dict):
+    """
+    Expected payload from Node:
 
-    conn = mysql.connector.connect(
-        host=config["host"],
-        user=config["user"],
-        password=config["password"],
-        database=config["database"]
-    )
+    {
+      "tableName": "users",
+      "rows": [
+        { "id": 1, "name": "John", "created_at": "2024-01-01" }
+      ]
+    }
+    """
 
-    results = []
+    table_name = payload.get("tableName")
+    rows = payload.get("rows", [])
 
-    for table in config["tables"]:
+    # Convert to DataFrame
+    df = pd.DataFrame(rows)
 
-        table_name = table["tableName"]
+    # ==============================
+    # Column Metrics
+    # ==============================
+    column_metrics = []
 
-        # ✅ PERFORMANCE SAFE SAMPLING 🔥
-        df = pd.read_sql(f"SELECT * FROM {table_name} LIMIT 200", conn)
-
-        column_metrics = []
-
+    if not df.empty:
         for col in df.columns:
-
-            completeness = df[col].notnull().mean() * 100 if len(df) > 0 else 0
-            uniqueness = df[col].nunique() / len(df) * 100 if len(df) > 0 else 0
-
-            # ✅ NaN SAFE FIX 🔥
-            completeness = 0 if pd.isna(completeness) else completeness
-            uniqueness = 0 if pd.isna(uniqueness) else uniqueness
+            completeness = df[col].notnull().mean() * 100
+            uniqueness = df[col].nunique() / len(df) * 100
 
             column_metrics.append({
                 "column": col,
@@ -75,76 +95,64 @@ def analyze_data(config: dict):
                 "uniqueness": round(uniqueness, 2)
             })
 
-        # ✅ FRESHNESS ENGINE 🔥🔥🔥
-        timestamp_column = detect_timestamp_column(df)
+    # ==============================
+    # Freshness
+    # ==============================
+    freshness_info = {
+        "lastUpdated": None,
+        "status": "UNKNOWN"
+    }
 
-        freshness_info = {
-            "lastUpdated": None,
-            "status": "UNKNOWN"
-        }
+    timestamp_column = detect_timestamp_column(df)
 
-        if timestamp_column:
+    if timestamp_column and not df.empty:
+        last_updated = df[timestamp_column].max()
+        if pd.notna(last_updated):
+            freshness_info["lastUpdated"] = str(last_updated)
+            freshness_info["status"] = "ACTIVE"
+        else:
+            freshness_info["status"] = "NO DATA"
+    else:
+        freshness_info["status"] = "NO TIMESTAMP"
 
-            latest_time = pd.read_sql(
-                f"SELECT MAX({timestamp_column}) as lastUpdated FROM {table_name}",
-                conn
+    # ==============================
+    # Risks
+    # ==============================
+    risks = []
+
+    if df.empty:
+        risks.append("Table contains no data → Dataset inactive")
+
+    for metric in column_metrics:
+        if metric["completeness"] < 50:
+            risks.append(
+                f"Column '{metric['column']}' has low completeness "
+                f"({metric['completeness']}%)"
             )
 
-            last_updated = latest_time.iloc[0]["lastUpdated"]
+        if metric["uniqueness"] < 10:
+            risks.append(
+                f"Column '{metric['column']}' has very low uniqueness "
+                f"({metric['uniqueness']}%)"
+            )
 
-            if last_updated:
-                freshness_info["lastUpdated"] = str(last_updated)
-                freshness_info["status"] = "ACTIVE"
-            else:
-                freshness_info["status"] = "NO DATA"
+    if freshness_info["status"] == "NO TIMESTAMP":
+        risks.append("No timestamp column detected → Freshness unavailable")
 
-        else:
-            freshness_info["status"] = "NO TIMESTAMP"
+    # ==============================
+    # Final Response
+    # ==============================
+    return {
+        "tableName": table_name,
+        "metrics": column_metrics,
+        "freshness": freshness_info,
+        "risks": risks
+    }
 
-        # ✅ AI RISK ENGINE 😈🔥🔥🔥
-        risks = []
 
-        # ✅ COLUMN RISKS
-        for metric in column_metrics:
-
-            if metric["completeness"] < 50:
-                risks.append(
-                    f"Column '{metric['column']}' has low completeness ({metric['completeness']}%) → Missing value risk"
-                )
-
-            if metric["uniqueness"] < 10:
-                risks.append(
-                    f"Column '{metric['column']}' has very low uniqueness ({metric['uniqueness']}%) → Duplicate-heavy field"
-                )
-
-        # ✅ TABLE RISKS
-        if len(df) == 0:
-            risks.append("Table contains no sampled data → Dataset inactive")
-
-        # ✅ FRESHNESS RISKS
-        if freshness_info["status"] == "NO DATA":
-            risks.append("Freshness check indicates NO DATA → Table not actively updated")
-
-        if freshness_info["status"] == "NO TIMESTAMP":
-            risks.append("No timestamp column detected → Freshness monitoring unavailable")
-
-        # ✅ STRUCTURAL RISKS 😈
-        for col in df.columns:
-            if "payload" in col.lower():
-                risks.append(
-                    f"Column '{col}' appears to store payload data → Potential heavy storage / logging field"
-                )
-
-        results.append({
-            "tableName": table_name,
-            "metrics": column_metrics,
-            "freshness": freshness_info,
-            "risks": risks
-        })
-
-    conn.close()
-
-    return results
+# ==============================
+# 🚀 RUN
+# ==============================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
