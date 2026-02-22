@@ -131,6 +131,10 @@ router.post("/extract", async (req, res) => {
       // ==========================
       // 📊 FETCH TABLE ROWS
       // ==========================
+      // ✅ TOTAL ROW COUNT
+      const [[{ rowCount }]] = await connection.execute(
+        `SELECT COUNT(*) AS rowCount FROM \`${tableName}\``,
+      );
       const [rows] = await connection.execute(
         `SELECT * FROM \`${tableName}\` LIMIT 1000`,
       );
@@ -156,6 +160,7 @@ router.post("/extract", async (req, res) => {
       // ==========================
       metadata.push({
         tableName,
+        rowCount, // 🔥 THIS FIXES YOUR UI
         businessSummary: aiResponse.data.businessSummary,
         columns: enrichedColumns,
         relationships,
