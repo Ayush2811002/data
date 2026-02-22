@@ -8,7 +8,9 @@ const PYTHON_SERVICE_URL =
   process.env.PYTHON_SERVICE_URL || "http://127.0.0.1:8000";
 
 console.log("🔥 PYTHON_SERVICE_URL =", PYTHON_SERVICE_URL);
-
+if (!PYTHON_SERVICE_URL) {
+  console.warn("⚠️ PYTHON_SERVICE_URL not set");
+}
 router.post("/extract", async (req, res) => {
   console.log("📩 /api/metadata/extract called");
 
