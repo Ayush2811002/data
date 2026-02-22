@@ -154,18 +154,58 @@ router.post("/extract", async (req, res) => {
       );
 
       console.log("✅ Data quality received");
+      const metrics = qualityResponse.data.metrics || [];
 
+      /* ✅ COMPLETENESS SCORE */
+      const completenessScore =
+        metrics.reduce((acc, col) => acc + (col.completeness || 0), 0) /
+        (metrics.length || 1);
+
+      /* ✅ UNIQUENESS SCORE */
+      const uniquenessScore =
+        metrics.reduce((acc, col) => acc + (col.uniqueness || 0), 0) /
+        (metrics.length || 1);
+
+      /* ✅ FRESHNESS SCORE (time decay) */
+      const lastUpdatedTime = new Date(
+        qualityResponse.data.freshness?.lastUpdated,
+      ).getTime();
+
+      const hoursAgo = (Date.now() - lastUpdatedTime) / (1000 * 60 * 60);
+
+      let freshnessScore = 0;
+
+      if (hoursAgo <= 1) freshnessScore = 100;
+      else if (hoursAgo <= 6) freshnessScore = 95;
+      else if (hoursAgo <= 12) freshnessScore = 90;
+      else if (hoursAgo <= 24)
+        freshnessScore = 80; // 👈 YOUR TARGET
+      else if (hoursAgo <= 48) freshnessScore = 65;
+      else if (hoursAgo <= 72) freshnessScore = 50;
+      else freshnessScore = 30;
       // ==========================
       // 📦 PUSH FINAL TABLE METADATA
       // ==========================
       metadata.push({
         tableName,
         rowCount, // 🔥 THIS FIXES YOUR UI
+
+        /* ✅ TABLE LEVEL KPIs */
+        completeness: { score: completenessScore },
+        uniqueness: { score: uniquenessScore },
+        freshness: {
+          ...qualityResponse.data.freshness,
+          score: freshnessScore,
+        },
+        displayMetrics: {
+          rowsLabel: rowCount.toLocaleString(),
+          columnsLabel: enrichedColumns.length,
+        },
         businessSummary: aiResponse.data.businessSummary,
         columns: enrichedColumns,
         relationships,
         dataQuality: qualityResponse.data.metrics,
-        freshness: qualityResponse.data.freshness,
+
         risks: qualityResponse.data.risks,
       });
     }
